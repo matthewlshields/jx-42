@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jx-42/schemas/finance_ledger.schema.json",
+  "title": "FinanceLedger",
+  "description": "A financial account ledger entry used by the Finance Program Agent.",
+  "type": "object",
+  "required": ["entry_id", "account_id", "date", "description", "amount", "currency"],
+  "additionalProperties": false,
+  "properties": {
+    "entry_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 identifier for the ledger entry."
+    },
+    "account_id": {
+      "type": "string",
+      "description": "Opaque reference to the financial account. Must not expose account numbers directly."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 date of the transaction (YYYY-MM-DD)."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Human-readable description of the transaction."
+    },
+    "amount": {
+      "type": "number",
+      "description": "Transaction amount. Negative values represent debits; positive values represent credits."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 three-letter currency code (e.g., 'USD', 'EUR')."
+    },
+    "category": {
+      "type": "string",
+      "description": "Spending or income category (e.g., 'groceries', 'salary', 'utilities')."
+    },
+    "running_balance": {
+      "type": "number",
+      "description": "Account balance after this entry is applied."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional user-defined tags for filtering and reporting."
+    }
+  }
+}
