@@ -80,7 +80,8 @@ def import_csv(
     Expected columns (case-insensitive): date, amount, [merchant | description], [memo], [currency]
     """
     if id_factory is None:
-        id_factory = lambda: str(uuid.uuid4())  # noqa: E731
+        def id_factory() -> str:
+            return str(uuid.uuid4())
     if batch_id is None:
         batch_id = str(uuid.uuid4())
 

@@ -413,7 +413,8 @@ def build_trade_ticket(
 ) -> InvestingTradeTicketDraft:
     """Build a draft trade ticket from a signal.  Never placed in v1."""
     if id_factory is None:
-        id_factory = lambda: str(uuid.uuid4())  # noqa: E731
+        def id_factory() -> str:
+            return str(uuid.uuid4())
 
     notional = portfolio_value * strategy.max_position_size
     qty = notional / current_price if current_price > 0 else 0

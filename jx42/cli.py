@@ -260,134 +260,151 @@ def _persist_market_data(points, db_path: Path) -> None:
     conn.close()
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    db_path = Path(args.db)
+def _backtest_json_default(o: object) -> object:
+    """JSON serializer that falls back to __dict__ then str."""
+    return o.__dict__ if hasattr(o, "__dict__") else str(o)
 
-    if args.command == "run":
-        kernel = DefaultKernel(
-            policy_guardian=DefaultPolicyGuardian(),
-            memory_librarian=_build_memory(args),
-            audit_log=_build_audit_log(args),
-            config=KernelConfig(determinism_seed=args.seed),
-        )
+
+def _handle_run(args: argparse.Namespace) -> int:
+    kernel = DefaultKernel(
+        policy_guardian=DefaultPolicyGuardian(),
+        memory_librarian=_build_memory(args),
+        audit_log=_build_audit_log(args),
+        config=KernelConfig(determinism_seed=args.seed),
+    )
+    try:
+        response = kernel.handle_request(UserRequest(text=args.text))
+        print(f"correlation_id={response.correlation_id}")
+        print(response.response_text)
+        return 0
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+def _handle_finance(args: argparse.Namespace, db_path: Path) -> int:
+    ledger = _build_finance_ledger(db_path)
+    fp = FinanceProgram(ledger=ledger)
+
+    if args.finance_command == "import-csv":
         try:
-            response = kernel.handle_request(UserRequest(text=args.text))
-            print(f"correlation_id={response.correlation_id}")
-            print(response.response_text)
+            csv_text = Path(args.file).read_text(encoding="utf-8")
+            entries = fp.import_csv(csv_text, account_id=args.account_id, source=args.source)
+            _persist_ledger_entries(entries, db_path)
+            print(f"Imported {len(entries)} entries into account '{args.account_id}'.")
             return 0
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
+    if args.finance_command == "report":
+        period = args.period
+        try:
+            if "W" in period.upper():
+                report = fp.weekly_report(period.upper().replace("w", "W"))
+            else:
+                report = fp.monthly_report(period)
+            print(json.dumps(report.__dict__, default=str, indent=2))
+            return 0
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    if args.finance_command == "reconcile":
+        result = fp.reconcile(args.account_id, args.statement_total)
+        status = "PASS" if result.passed else "FAIL"
+        print(f"[{status}] {result.message}")
+        return 0 if result.passed else 1
+
+    if args.finance_command == "runway":
+        est = fp.runway(args.balance)
+        print(json.dumps(est.__dict__, default=str, indent=2))
+        return 0
+
+    if args.finance_command == "debt-payoff":
+        try:
+            debts = json.loads(args.debts_json)
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid JSON for debts: {exc}", file=sys.stderr)
+            return 1
+        scenarios = fp.debt_payoff(debts, extra_monthly=args.extra, strategy=args.strategy)
+        print(json.dumps([s.__dict__ for s in scenarios], default=str, indent=2))
+        return 0
+
+    if args.finance_command == "anomalies":
+        alerts = fp.anomalies()
+        print(json.dumps([a.__dict__ for a in alerts], default=str, indent=2))
+        return 0
+
+    return 1
+
+
+def _handle_investing(args: argparse.Namespace, db_path: Path) -> int:
+    market_data = _build_market_data_store(db_path)
+    ip = InvestingProgram()
+    for p in market_data:
+        ip._market_data.append(p)
+
+    if args.investing_command == "load-market-data":
+        try:
+            csv_text = Path(args.file).read_text(encoding="utf-8")
+            points = ip.load_market_csv(csv_text)
+            _persist_market_data(points, db_path)
+            print(f"Loaded {len(points)} market data points.")
+            return 0
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    if args.investing_command == "check-data":
+        errors = ip.check_integrity()
+        if errors:
+            for e in errors:
+                print(f"  INTEGRITY ERROR: {e}")
+            return 1
+        print(f"Data integrity OK ({len(ip._market_data)} points).")
+        return 0
+
+    if args.investing_command in ("signals", "backtest", "draft-tickets"):
+        try:
+            strategy = _load_strategy(args.strategy_file)
+        except Exception as exc:
+            print(f"error: could not load strategy: {exc}", file=sys.stderr)
+            return 1
+        ip.add_strategy(strategy)
+
+        if args.investing_command == "signals":
+            sigs = ip.signals(strategy.strategy_id)
+            print(json.dumps([s.__dict__ for s in sigs], default=str, indent=2))
+            return 0
+
+        if args.investing_command == "backtest":
+            result = ip.backtest(strategy.strategy_id, initial_capital=args.capital)
+            print(result.summary)
+            print(json.dumps(result.__dict__, default=_backtest_json_default, indent=2))
+            return 0
+
+        if args.investing_command == "draft-tickets":
+            tickets = ip.draft_tickets(strategy.strategy_id, portfolio_value=args.portfolio_value)
+            print(json.dumps([t.to_dict() for t in tickets], default=str, indent=2))
+            return 0
+
+    return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    db_path = Path(args.db)
+
+    if args.command == "run":
+        return _handle_run(args)
+
     if args.command == "finance":
-        ledger = _build_finance_ledger(db_path)
-        fp = FinanceProgram(ledger=ledger)
-
-        if args.finance_command == "import-csv":
-            try:
-                csv_text = Path(args.file).read_text(encoding="utf-8")
-                entries = fp.import_csv(csv_text, account_id=args.account_id, source=args.source)
-                _persist_ledger_entries(entries, db_path)
-                print(f"Imported {len(entries)} entries into account '{args.account_id}'.")
-                return 0
-            except Exception as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                return 1
-
-        if args.finance_command == "report":
-            period = args.period
-            try:
-                if "W" in period.upper():
-                    report = fp.weekly_report(period.upper().replace("w", "W"))
-                else:
-                    report = fp.monthly_report(period)
-                print(json.dumps(report.__dict__, default=str, indent=2))
-                return 0
-            except Exception as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                return 1
-
-        if args.finance_command == "reconcile":
-            result = fp.reconcile(args.account_id, args.statement_total)
-            status = "PASS" if result.passed else "FAIL"
-            print(f"[{status}] {result.message}")
-            return 0 if result.passed else 1
-
-        if args.finance_command == "runway":
-            est = fp.runway(args.balance)
-            print(json.dumps(est.__dict__, default=str, indent=2))
-            return 0
-
-        if args.finance_command == "debt-payoff":
-            try:
-                debts = json.loads(args.debts_json)
-            except json.JSONDecodeError as exc:
-                print(f"error: invalid JSON for debts: {exc}", file=sys.stderr)
-                return 1
-            scenarios = fp.debt_payoff(debts, extra_monthly=args.extra, strategy=args.strategy)
-            print(json.dumps([s.__dict__ for s in scenarios], default=str, indent=2))
-            return 0
-
-        if args.finance_command == "anomalies":
-            alerts = fp.anomalies()
-            print(json.dumps([a.__dict__ for a in alerts], default=str, indent=2))
-            return 0
+        return _handle_finance(args, db_path)
 
     if args.command == "investing":
-        market_data = _build_market_data_store(db_path)
-        ip = InvestingProgram()
-        for p in market_data:
-            ip._market_data.append(p)
-
-        if args.investing_command == "load-market-data":
-            try:
-                csv_text = Path(args.file).read_text(encoding="utf-8")
-                points = ip.load_market_csv(csv_text)
-                _persist_market_data(points, db_path)
-                print(f"Loaded {len(points)} market data points.")
-                return 0
-            except Exception as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                return 1
-
-        if args.investing_command == "check-data":
-            errors = ip.check_integrity()
-            if errors:
-                for e in errors:
-                    print(f"  INTEGRITY ERROR: {e}")
-                return 1
-            print(f"Data integrity OK ({len(ip._market_data)} points).")
-            return 0
-
-        if args.investing_command in ("signals", "backtest", "draft-tickets"):
-            try:
-                strategy = _load_strategy(args.strategy_file)
-            except Exception as exc:
-                print(f"error: could not load strategy: {exc}", file=sys.stderr)
-                return 1
-            ip.add_strategy(strategy)
-
-            if args.investing_command == "signals":
-                sigs = ip.signals(strategy.strategy_id)
-                print(json.dumps([s.__dict__ for s in sigs], default=str, indent=2))
-                return 0
-
-            if args.investing_command == "backtest":
-                result = ip.backtest(strategy.strategy_id, initial_capital=args.capital)
-                print(result.summary)
-
-                def _default(o):  # noqa: E306
-                    return o.__dict__ if hasattr(o, "__dict__") else str(o)
-
-                print(json.dumps(result.__dict__, default=_default, indent=2))
-                return 0
-
-            if args.investing_command == "draft-tickets":
-                tickets = ip.draft_tickets(strategy.strategy_id, portfolio_value=args.portfolio_value)
-                print(json.dumps([t.to_dict() for t in tickets], default=str, indent=2))
-                return 0
+        return _handle_investing(args, db_path)
 
     return 1
 
