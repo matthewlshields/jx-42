@@ -1,6 +1,6 @@
 import unittest
 
-from jx42.validation import validate_audit_event, validate_finance_ledger_entry
+from jx42.validation import validate_audit_event, validate_finance_ledger_entry, validate_investing_trade_ticket
 
 
 class TestValidation(unittest.TestCase):
@@ -37,6 +37,24 @@ class TestValidation(unittest.TestCase):
         }
         errors = validate_finance_ledger_entry(payload)
         self.assertEqual([], errors)
+
+    def test_investing_trade_ticket_valid(self) -> None:
+        payload = {
+            "ticket_id": "ticket-1",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "symbol": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "strategy_version": "v1",
+            "status": "draft",
+        }
+        errors = validate_investing_trade_ticket(payload)
+        self.assertEqual([], errors)
+
+    def test_investing_trade_ticket_missing_field(self) -> None:
+        payload = {"ticket_id": "ticket-1", "symbol": "AAPL"}
+        errors = validate_investing_trade_ticket(payload)
+        self.assertIn("Missing required field: created_at", errors)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,10 @@ SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas"
 
 
 def load_schema(name: str) -> Dict[str, Any]:
-    path = SCHEMA_DIR / name
+    schema_dir = SCHEMA_DIR.resolve()
+    path = (SCHEMA_DIR / name).resolve()
+    if not path.is_relative_to(schema_dir):
+        raise ValueError(f"Schema name is not allowed: {name}")
     try:
         with path.open("r", encoding="utf-8") as handle:
             return cast(Dict[str, Any], json.load(handle))

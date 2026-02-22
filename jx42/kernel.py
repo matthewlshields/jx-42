@@ -169,8 +169,6 @@ class DefaultKernel(Kernel):
         return "Request received. Draft response stub."
 
     def _apply_persona(self, text: str) -> str:
-        if self._config.persona == "k2so":
-            return text
         return text
 
     def _emit_event(
