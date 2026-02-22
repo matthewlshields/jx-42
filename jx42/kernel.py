@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from .audit import AuditLog
 from .memory import MemoryLibrarian
@@ -18,6 +18,10 @@ from .models import (
     utc_now_iso,
 )
 from .policy import PolicyDecision, PolicyGuardian
+
+if TYPE_CHECKING:
+    from .finance import FinanceProgram
+    from .investing import InvestingProgram
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,8 @@ class DefaultKernel(Kernel):
         audit_log: AuditLog,
         config: Optional[KernelConfig] = None,
         time_provider: Optional[Callable[[], str]] = None,
+        finance_program: Optional["FinanceProgram"] = None,
+        investing_program: Optional["InvestingProgram"] = None,
     ) -> None:
         self._policy = policy_guardian
         self._memory = memory_librarian
@@ -47,6 +53,8 @@ class DefaultKernel(Kernel):
         self._rng = random.Random(self._config.determinism_seed)
         self._id_generator = IdGenerator(self._rng if self._config.determinism_seed is not None else None)
         self._time_provider = time_provider or utc_now_iso
+        self._finance = finance_program
+        self._investing = investing_program
 
     def handle_request(self, request: UserRequest) -> KernelResponse:
         # Validate that the incoming request has a non-empty text payload
@@ -161,8 +169,12 @@ class DefaultKernel(Kernel):
                 "I can draft a safe plan instead if you want."
             )
         if plan.intent == Intent.FINANCE_REPORT_REQUEST:
+            if self._finance is not None:
+                return "Finance program ready. Use CLI commands to import CSV and generate reports."
             return "Draft finance summary stub. Provide data to continue."
         if plan.intent == Intent.INVESTING_TRADE_REQUEST:
+            if self._investing is not None:
+                return "Investing program ready. Use CLI commands to load market data and generate signals."
             return "Draft investing note stub. Provide strategy and risk limits to continue."
         if plan.intent == Intent.MONEY_MOVE:
             return "Money movement is blocked in v1."
