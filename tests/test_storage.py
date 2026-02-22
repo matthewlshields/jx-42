@@ -163,6 +163,116 @@ class TestSqliteMemoryLibrarian(unittest.TestCase):
         self.assertEqual(item.content, stored.content)
         self.assertEqual(item.provenance, stored.provenance)
 
+    def test_like_wildcard_not_injected(self) -> None:
+        """Literal % and _ in a query must not be treated as LIKE wildcards."""
+        lib = SqliteMemoryLibrarian(self._db)
+        lib.store([
+            MemoryItem("m1", "2026-01-01T00:00:00+00:00", "note", "100% complete", "user"),
+            MemoryItem("m2", "2026-01-01T00:00:00+00:00", "note", "progress update", "user"),
+        ])
+        # A query of "%" as a wildcard would match both items; as a literal it should match only m1
+        items = lib.retrieve(query="100%")
+        self.assertEqual(1, len(items))
+        self.assertEqual("m1", items[0].item_id)
+
+    def test_underscore_not_injected(self) -> None:
+        """Literal _ in a query must not be treated as a single-char wildcard."""
+        lib = SqliteMemoryLibrarian(self._db)
+        lib.store([
+            MemoryItem("m1", "2026-01-01T00:00:00+00:00", "note", "user_preference", "user"),
+            MemoryItem("m2", "2026-01-01T00:00:00+00:00", "note", "other note", "user"),
+        ])
+        # "_" as a wildcard would match any single char and could over-match
+        items = lib.retrieve(query="user_preference")
+        self.assertEqual(1, len(items))
+        self.assertEqual("m1", items[0].item_id)
+
+
+class TestSqliteFinanceLedger(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._db = Path(self._tmp.name) / "test.db"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_save_and_load(self) -> None:
+        from jx42.models import FinanceLedgerEntry
+        from jx42.storage import SqliteFinanceLedger
+
+        store = SqliteFinanceLedger(self._db)
+        entry = FinanceLedgerEntry(
+            entry_id="e1", date="2026-01-05", amount=-100.0, currency="USD",
+            account_id="checking", merchant="Kroger", category="groceries",
+            category_confidence=0.9, memo="", source="bank_export", import_batch_id="b1",
+        )
+        store.save([entry])
+        rows = store.load_all()
+        self.assertEqual(1, len(rows))
+        self.assertEqual("e1", rows[0].entry_id)
+        self.assertAlmostEqual(-100.0, rows[0].amount)
+
+    def test_idempotent_save(self) -> None:
+        from jx42.models import FinanceLedgerEntry
+        from jx42.storage import SqliteFinanceLedger
+
+        store = SqliteFinanceLedger(self._db)
+        entry = FinanceLedgerEntry("e1", "2026-01-05", -50.0, "USD", "checking")
+        store.save([entry])
+        store.save([entry])
+        self.assertEqual(1, len(store.load_all()))
+
+    def test_persistence_across_instances(self) -> None:
+        from jx42.models import FinanceLedgerEntry
+        from jx42.storage import SqliteFinanceLedger
+
+        SqliteFinanceLedger(self._db).save([
+            FinanceLedgerEntry("e1", "2026-01-05", -50.0, "USD", "checking"),
+        ])
+        rows = SqliteFinanceLedger(self._db).load_all()
+        self.assertEqual(1, len(rows))
+
+
+class TestSqliteMarketDataStore(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._db = Path(self._tmp.name) / "test.db"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_save_and_load(self) -> None:
+        from jx42.models import MarketDataPoint
+        from jx42.storage import SqliteMarketDataStore
+
+        store = SqliteMarketDataStore(self._db)
+        p = MarketDataPoint("AAPL", "2026-01-02", 150.0, 152.0, 149.0, 151.0, 1_000_000)
+        store.save([p])
+        rows = store.load_all()
+        self.assertEqual(1, len(rows))
+        self.assertEqual("AAPL", rows[0].symbol)
+        self.assertAlmostEqual(151.0, rows[0].close)
+
+    def test_idempotent_save(self) -> None:
+        from jx42.models import MarketDataPoint
+        from jx42.storage import SqliteMarketDataStore
+
+        store = SqliteMarketDataStore(self._db)
+        p = MarketDataPoint("AAPL", "2026-01-02", 150.0, 152.0, 149.0, 151.0, 1_000_000)
+        store.save([p])
+        store.save([p])
+        self.assertEqual(1, len(store.load_all()))
+
+    def test_persistence_across_instances(self) -> None:
+        from jx42.models import MarketDataPoint
+        from jx42.storage import SqliteMarketDataStore
+
+        SqliteMarketDataStore(self._db).save([
+            MarketDataPoint("AAPL", "2026-01-02", 150.0, 152.0, 149.0, 151.0, 1_000_000),
+        ])
+        rows = SqliteMarketDataStore(self._db).load_all()
+        self.assertEqual(1, len(rows))
+
 
 if __name__ == "__main__":
     unittest.main()

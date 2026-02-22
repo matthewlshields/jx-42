@@ -12,7 +12,14 @@ from typing import List, Optional
 
 from .audit import AuditLog, _redact_event
 from .memory import MemoryLibrarian
-from .models import AuditEvent, MemoryItem, PolicyDecisionType, RiskLevel
+from .models import (
+    AuditEvent,
+    FinanceLedgerEntry,
+    MarketDataPoint,
+    MemoryItem,
+    PolicyDecisionType,
+    RiskLevel,
+)
 
 # ---------------------------------------------------------------------------
 # SQLite AuditLog
@@ -160,9 +167,14 @@ class SqliteMemoryLibrarian(MemoryLibrarian):
                     (limit,),
                 )
             else:
+                # Escape LIKE metacharacters in the user-supplied query so that
+                # literal '%' and '_' characters are not treated as wildcards.
+                escaped = query.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 cursor = conn.execute(
-                    "SELECT * FROM memory_items WHERE lower(content) LIKE ? ORDER BY timestamp, item_id LIMIT ?",
-                    (f"%{query.lower()}%", limit),
+                    "SELECT * FROM memory_items"
+                    " WHERE lower(content) LIKE ? ESCAPE '\\'"
+                    " ORDER BY timestamp, item_id LIMIT ?",
+                    (f"%{escaped}%", limit),
                 )
             return [_row_to_memory_item(row) for row in cursor.fetchall()]
 
@@ -175,3 +187,156 @@ def _row_to_memory_item(row: sqlite3.Row) -> MemoryItem:
         content=row["content"],
         provenance=row["provenance"],
     )
+
+
+# ---------------------------------------------------------------------------
+# SQLite FinanceLedger store
+# ---------------------------------------------------------------------------
+
+_FINANCE_LEDGER_DDL = """
+CREATE TABLE IF NOT EXISTS finance_ledger (
+    entry_id            TEXT PRIMARY KEY,
+    date                TEXT NOT NULL,
+    amount              REAL NOT NULL,
+    currency            TEXT NOT NULL,
+    account_id          TEXT NOT NULL,
+    merchant            TEXT,
+    category            TEXT,
+    category_confidence REAL,
+    memo                TEXT,
+    source              TEXT,
+    import_batch_id     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_account ON finance_ledger(account_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_date ON finance_ledger(date);
+"""
+
+
+class SqliteFinanceLedger:
+    """Persistent finance ledger backed by SQLite."""
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._db_path = str(db_path)
+        self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(_FINANCE_LEDGER_DDL)
+
+    def save(self, entries: List[FinanceLedgerEntry]) -> None:
+        """Persist entries, silently skipping duplicates (idempotent on entry_id)."""
+        with self._connect() as conn:
+            for e in entries:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO finance_ledger
+                        (entry_id, date, amount, currency, account_id,
+                         merchant, category, category_confidence,
+                         memo, source, import_batch_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        e.entry_id, e.date, e.amount, e.currency, e.account_id,
+                        e.merchant, e.category, e.category_confidence,
+                        e.memo, e.source, e.import_batch_id,
+                    ),
+                )
+
+    def load_all(self) -> List[FinanceLedgerEntry]:
+        """Return all ledger entries ordered by date then entry_id."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM finance_ledger ORDER BY date, entry_id"
+            )
+            return [_row_to_ledger_entry(row) for row in cursor.fetchall()]
+
+
+def _row_to_ledger_entry(row: sqlite3.Row) -> FinanceLedgerEntry:
+    return FinanceLedgerEntry(
+        entry_id=row["entry_id"],
+        date=row["date"],
+        amount=row["amount"],
+        currency=row["currency"],
+        account_id=row["account_id"],
+        merchant=row["merchant"] or "",
+        category=row["category"] or "uncategorized",
+        category_confidence=row["category_confidence"] or 0.0,
+        memo=row["memo"] or "",
+        source=row["source"] or "bank_export",
+        import_batch_id=row["import_batch_id"] or "",
+    )
+
+
+# ---------------------------------------------------------------------------
+# SQLite MarketData store
+# ---------------------------------------------------------------------------
+
+_MARKET_DATA_DDL = """
+CREATE TABLE IF NOT EXISTS market_data (
+    symbol  TEXT NOT NULL,
+    date    TEXT NOT NULL,
+    open    REAL NOT NULL,
+    high    REAL NOT NULL,
+    low     REAL NOT NULL,
+    close   REAL NOT NULL,
+    volume  REAL NOT NULL,
+    PRIMARY KEY (symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_market_symbol ON market_data(symbol);
+"""
+
+
+class SqliteMarketDataStore:
+    """Persistent market data store backed by SQLite."""
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._db_path = str(db_path)
+        self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(_MARKET_DATA_DDL)
+
+    def save(self, points: List[MarketDataPoint]) -> None:
+        """Persist data points, silently skipping duplicates (idempotent on symbol+date)."""
+        with self._connect() as conn:
+            for p in points:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO market_data
+                        (symbol, date, open, high, low, close, volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (p.symbol, p.date, p.open, p.high, p.low, p.close, p.volume),
+                )
+
+    def load_all(self) -> List[MarketDataPoint]:
+        """Return all market data points ordered by symbol then date."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM market_data ORDER BY symbol, date"
+            )
+            return [_row_to_market_data_point(row) for row in cursor.fetchall()]
+
+
+def _row_to_market_data_point(row: sqlite3.Row) -> MarketDataPoint:
+    return MarketDataPoint(
+        symbol=row["symbol"],
+        date=row["date"],
+        open=row["open"],
+        high=row["high"],
+        low=row["low"],
+        close=row["close"],
+        volume=row["volume"],
+    )
+

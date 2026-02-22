@@ -12,7 +12,12 @@ from .kernel import DefaultKernel, KernelConfig
 from .memory import InMemoryMemoryLibrarian
 from .models import StrategyDefinition, StrategyRule, UserRequest
 from .policy import DefaultPolicyGuardian
-from .storage import SqliteAuditLog, SqliteMemoryLibrarian
+from .storage import (
+    SqliteAuditLog,
+    SqliteFinanceLedger,
+    SqliteMarketDataStore,
+    SqliteMemoryLibrarian,
+)
 
 _DEFAULT_DB = Path.home() / ".jx42" / "jx42.db"
 
@@ -125,141 +130,6 @@ def _build_memory(args: argparse.Namespace):
     return SqliteMemoryLibrarian(db_path)
 
 
-def _build_finance_ledger(db_path: Path) -> list:
-    """Load existing ledger entries from the SQLite DB if the ledger table exists."""
-    import sqlite3
-
-    ledger = []
-    if not db_path.exists():
-        return ledger
-    try:
-        from .models import FinanceLedgerEntry
-
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='finance_ledger'")
-        if cursor.fetchone() is None:
-            conn.close()
-            return ledger
-        cursor = conn.execute("SELECT * FROM finance_ledger ORDER BY date, entry_id")
-        for row in cursor.fetchall():
-            ledger.append(
-                FinanceLedgerEntry(
-                    entry_id=row["entry_id"],
-                    date=row["date"],
-                    amount=row["amount"],
-                    currency=row["currency"],
-                    account_id=row["account_id"],
-                    merchant=row["merchant"],
-                    category=row["category"],
-                    category_confidence=row["category_confidence"],
-                    memo=row["memo"],
-                    source=row["source"],
-                    import_batch_id=row["import_batch_id"],
-                )
-            )
-        conn.close()
-    except Exception:
-        pass
-    return ledger
-
-
-def _persist_ledger_entries(entries, db_path: Path) -> None:
-    """Persist new ledger entries to the SQLite DB."""
-    import sqlite3
-
-    _ensure_db_dir(db_path)
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS finance_ledger (
-            entry_id           TEXT PRIMARY KEY,
-            date               TEXT NOT NULL,
-            amount             REAL NOT NULL,
-            currency           TEXT NOT NULL,
-            account_id         TEXT NOT NULL,
-            merchant           TEXT,
-            category           TEXT,
-            category_confidence REAL,
-            memo               TEXT,
-            source             TEXT,
-            import_batch_id    TEXT
-        )
-    """)
-    for e in entries:
-        conn.execute(
-            "INSERT OR IGNORE INTO finance_ledger VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                e.entry_id, e.date, e.amount, e.currency, e.account_id,
-                e.merchant, e.category, e.category_confidence,
-                e.memo, e.source, e.import_batch_id,
-            ),
-        )
-    conn.commit()
-    conn.close()
-
-
-def _build_market_data_store(db_path: Path) -> list:
-    """Load existing market data from the SQLite DB if the table exists."""
-    import sqlite3
-
-    data = []
-    if not db_path.exists():
-        return data
-    try:
-        from .models import MarketDataPoint
-
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='market_data'")
-        if cursor.fetchone() is None:
-            conn.close()
-            return data
-        cursor = conn.execute("SELECT * FROM market_data ORDER BY symbol, date")
-        for row in cursor.fetchall():
-            data.append(
-                MarketDataPoint(
-                    symbol=row["symbol"],
-                    date=row["date"],
-                    open=row["open"],
-                    high=row["high"],
-                    low=row["low"],
-                    close=row["close"],
-                    volume=row["volume"],
-                )
-            )
-        conn.close()
-    except Exception:
-        pass
-    return data
-
-
-def _persist_market_data(points, db_path: Path) -> None:
-    """Persist new market data points to the SQLite DB."""
-    import sqlite3
-
-    _ensure_db_dir(db_path)
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS market_data (
-            symbol  TEXT NOT NULL,
-            date    TEXT NOT NULL,
-            open    REAL NOT NULL,
-            high    REAL NOT NULL,
-            low     REAL NOT NULL,
-            close   REAL NOT NULL,
-            volume  REAL NOT NULL,
-            PRIMARY KEY (symbol, date)
-        )
-    """)
-    for p in points:
-        conn.execute(
-            "INSERT OR IGNORE INTO market_data VALUES (?,?,?,?,?,?,?)",
-            (p.symbol, p.date, p.open, p.high, p.low, p.close, p.volume),
-        )
-    conn.commit()
-    conn.close()
-
-
 def _backtest_json_default(o: object) -> object:
     """JSON serializer that falls back to __dict__ then str."""
     return o.__dict__ if hasattr(o, "__dict__") else str(o)
@@ -283,14 +153,15 @@ def _handle_run(args: argparse.Namespace) -> int:
 
 
 def _handle_finance(args: argparse.Namespace, db_path: Path) -> int:
-    ledger = _build_finance_ledger(db_path)
-    fp = FinanceProgram(ledger=ledger)
+    _ensure_db_dir(db_path)
+    ledger_store = SqliteFinanceLedger(db_path)
+    fp = FinanceProgram(ledger=ledger_store.load_all())
 
     if args.finance_command == "import-csv":
         try:
             csv_text = Path(args.file).read_text(encoding="utf-8")
             entries = fp.import_csv(csv_text, account_id=args.account_id, source=args.source)
-            _persist_ledger_entries(entries, db_path)
+            ledger_store.save(entries)
             print(f"Imported {len(entries)} entries into account '{args.account_id}'.")
             return 0
         except Exception as exc:
@@ -340,16 +211,17 @@ def _handle_finance(args: argparse.Namespace, db_path: Path) -> int:
 
 
 def _handle_investing(args: argparse.Namespace, db_path: Path) -> int:
-    market_data = _build_market_data_store(db_path)
+    _ensure_db_dir(db_path)
+    market_store = SqliteMarketDataStore(db_path)
     ip = InvestingProgram()
-    for p in market_data:
+    for p in market_store.load_all():
         ip._market_data.append(p)
 
     if args.investing_command == "load-market-data":
         try:
             csv_text = Path(args.file).read_text(encoding="utf-8")
             points = ip.load_market_csv(csv_text)
-            _persist_market_data(points, db_path)
+            market_store.save(points)
             print(f"Loaded {len(points)} market data points.")
             return 0
         except Exception as exc:
