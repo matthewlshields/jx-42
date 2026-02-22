@@ -25,6 +25,8 @@ class InMemoryMemoryLibrarian(MemoryLibrarian):
         return stored_ids
 
     def retrieve(self, query: Optional[str] = None, limit: int = 5) -> List[MemoryItem]:
+        if limit < 0:
+            raise ValueError("limit must be non-negative")
         items = sorted(self._items, key=lambda item: (item.timestamp, item.item_id))
         if query is not None:
             lowered = query.lower()

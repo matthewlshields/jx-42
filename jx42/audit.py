@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
-from typing import Iterable, List, Optional
+from typing import List, Optional
 
 from .models import AuditEvent
 
@@ -54,7 +54,3 @@ def _redact_event(event: AuditEvent) -> AuditEvent:
         inputs_summary=redact_text(event.inputs_summary),
         outputs_summary=redact_text(event.outputs_summary),
     )
-
-
-def redact_summaries(events: Iterable[AuditEvent]) -> List[AuditEvent]:
-    return [_redact_event(event) for event in events]
