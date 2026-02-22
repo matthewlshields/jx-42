@@ -20,7 +20,7 @@ class PolicyGuardian:
 
 class DefaultPolicyGuardian(PolicyGuardian):
     def __init__(self) -> None:
-        self._allowed_tools = set()
+        self._allowed_tools: set[str] = set()
 
     def evaluate(self, intent: Intent, tool_call: Optional[ToolCall] = None) -> PolicyDecision:
         if tool_call is not None:

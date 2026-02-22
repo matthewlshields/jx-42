@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import Callable, Optional, Sequence
 
 from .audit import AuditLog
 from .memory import MemoryLibrarian
@@ -101,7 +101,7 @@ class DefaultKernel(Kernel):
             audit_event_ids=audit_ids,
         )
 
-    def _plan_request(self, request: UserRequest, context_items: List[object]) -> Plan:
+    def _plan_request(self, request: UserRequest, context_items: Sequence[object]) -> Plan:
         text = request.text.lower()
         if "move" in text and ("$" in text or "transfer" in text or "savings" in text):
             intent = Intent.MONEY_MOVE

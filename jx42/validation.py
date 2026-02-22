@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas"
 
@@ -10,7 +10,7 @@ SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas"
 def load_schema(name: str) -> Dict[str, Any]:
     path = SCHEMA_DIR / name
     with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        return cast(Dict[str, Any], json.load(handle))
 
 
 def validate_required_fields(payload: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
