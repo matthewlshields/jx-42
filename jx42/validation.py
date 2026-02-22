@@ -9,8 +9,13 @@ SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas"
 
 def load_schema(name: str) -> Dict[str, Any]:
     path = SCHEMA_DIR / name
-    with path.open("r", encoding="utf-8") as handle:
-        return cast(Dict[str, Any], json.load(handle))
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return cast(Dict[str, Any], json.load(handle))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Schema file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in schema file: {path}") from exc
 
 
 def validate_required_fields(payload: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
