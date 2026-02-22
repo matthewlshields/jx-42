@@ -1,44 +1,48 @@
-# Milestones
+# JX-42 Milestones (Build Order)
 
-## M0 — Foundation (Current)
+## Milestone 0 — Kernel Skeleton (Tier 0)
+Deliver:
+- Request -> Plan -> Route loop
+- Policy Guardian gate enforced
+- Memory store stub + retrieval bundle
+- Audit log events for each step
 
-- [x] Repository structure created
-- [x] Core documentation: SPEC, AGENTS, POLICIES, DATA_MODEL, ARCHITECTURE
-- [x] JSON schemas for AuditEvent, FinanceLedger, InvestingTradeTicket
-- [x] System prompts for all agents
-- [x] Example inputs and strategy documents
+Accept:
+- No tool calls without policy approval
+- Responses include correlation_id + audit_event_id
+- Determinism mode option for planning
 
-## M1 — Kernel Prototype
+## Milestone 1 — Finance v1 (Tier 1)
+Deliver:
+- CSV import pipeline
+- Normalization + categorization (simple rules first)
+- Reconciliation checks
+- Weekly delta report + monthly close
+- Runway + survival budget draft
+- Draft debt payoff scenarios
 
-- [ ] Implement jx-42 kernel agent with intent classification
-- [ ] Integrate policy_guardian veto loop
-- [ ] Emit AuditEvent records for every agent action
-- [ ] Basic CLI runner for local testing
+Accept:
+- Ledger totals reconcile with statement totals within tolerance
+- Every recommendation cites numeric basis
+- Anomaly detection flags spikes/subscription creep
 
-## M2 — Finance Program
+## Milestone 2 — Investing v1 (Tier 1)
+Deliver:
+- Strategy definition format (rules-based)
+- Market data ingestion (single source)
+- Data integrity checks
+- Backtest v1 (simple, transparent)
+- Watchlist + signals
+- Draft trade tickets
 
-- [ ] Budget ingestion from CSV/JSON ledger
-- [ ] Spending analysis and categorisation
-- [ ] Monthly savings projection output
-- [ ] Unit tests with `finance_sample_inputs.md` data
+Accept:
+- No look-ahead bias
+- Repeatable outputs (same inputs => same outputs)
+- Tickets respect risk limits
 
-## M3 — Investing Program
-
-- [ ] Portfolio summary from trade ticket history
-- [ ] Trade proposal workflow with human-approval gate
-- [ ] Strategy recommendation narrative generation
-- [ ] Integration tests with `investing_strategy_example.md`
-
-## M4 — Hardening & Observability
-
-- [ ] Full policy compliance audit
-- [ ] PII redaction validation
-- [ ] Structured logging with AuditEvent schema
-- [ ] Threat model review (see `docs/threat-model-lite.md`)
-
-## M5 — Release Candidate
-
-- [ ] End-to-end integration tests
-- [ ] Documentation review and finalisation
-- [ ] Security sign-off
-- [ ] Version tag `v1.0.0`
+## Milestone 3 — UX + Safety Upgrades
+Deliver:
+- Confirmation flows (single/double confirm)
+- Paper trading mode
+- Kill-switch + cooldown rules
+- Better dashboards + exportable reports
