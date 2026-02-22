@@ -30,10 +30,14 @@ def main(argv: list[str] | None = None) -> int:
             audit_log=InMemoryAuditLog(),
             config=KernelConfig(determinism_seed=args.seed),
         )
-        response = kernel.handle_request(UserRequest(text=args.text))
-        print(f"correlation_id={response.correlation_id}")
-        print(response.response_text)
-        return 0
+        try:
+            response = kernel.handle_request(UserRequest(text=args.text))
+            print(f"correlation_id={response.correlation_id}")
+            print(response.response_text)
+            return 0
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
 
     return 1
 
