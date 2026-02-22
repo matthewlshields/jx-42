@@ -1,49 +1,46 @@
-# Data Model
+# JX-42 Data Model (v1)
 
-This document describes the core data entities used by jx-42.
+## 1 AuditEvent (append-only)
+Fields:
+- event_id (uuid)
+- timestamp (iso8601)
+- correlation_id (uuid) - ties multiple events to a single request
+- component (kernel|policy|memory|finance|investing|connector)
+- action_type (plan_created|tool_call|policy_decision|report_generated|draft_created|error)
+- risk_level (low|medium|high)
+- inputs_summary (redacted)
+- outputs_summary (redacted)
+- policy_decision (allow|deny|confirm_required)
+- rationale (short)
 
-## AuditEvent
+## 2 Finance Ledger Entry
+Fields:
+- entry_id (uuid)
+- date
+- amount
+- currency
+- account_id
+- merchant/payee
+- category (normalized)
+- category_confidence (0..1)
+- memo
+- source (bank_export|manual)
+- import_batch_id
 
-Represents a single recorded action or decision by an agent. Schema: `schemas/audit_event.schema.json`.
-
-| Field        | Type     | Description                                      |
-|--------------|----------|--------------------------------------------------|
-| event_id     | string   | UUID v4 identifier for the event                 |
-| timestamp    | string   | ISO 8601 datetime of the event                   |
-| agent        | string   | Name of the agent that produced the event        |
-| action       | string   | Short action identifier (e.g., `trade.propose`)  |
-| status       | string   | `success`, `failure`, `vetoed`, or `pending`     |
-| payload      | object   | Action-specific data (schema varies by action)   |
-| policy_flags | string[] | List of policy IDs checked during this event     |
-
-## FinanceLedger
-
-Represents a financial account ledger entry. Schema: `schemas/finance_ledger.schema.json`.
-
-| Field          | Type   | Description                              |
-|----------------|--------|------------------------------------------|
-| entry_id       | string | UUID v4 identifier                       |
-| account_id     | string | Opaque account reference                 |
-| date           | string | ISO 8601 date of the transaction         |
-| description    | string | Human-readable description               |
-| amount         | number | Transaction amount (negative = debit)    |
-| currency       | string | ISO 4217 currency code (e.g., `USD`)     |
-| category       | string | Spending/income category                 |
-| running_balance| number | Account balance after this entry         |
-
-## InvestingTradeTicket
-
-Represents a proposed or executed trade. Schema: `schemas/investing_trade_ticket.schema.json`.
-
-| Field        | Type   | Description                                    |
-|--------------|--------|------------------------------------------------|
-| ticket_id    | string | UUID v4 identifier                             |
-| symbol       | string | Ticker symbol (e.g., `AAPL`)                   |
-| asset_class  | string | `equity`, `etf`, `bond`, `crypto`, `other`     |
-| action       | string | `buy` or `sell`                                |
-| quantity     | number | Number of shares or units                      |
-| limit_price  | number | Optional limit price; null for market orders   |
-| currency     | string | ISO 4217 currency code                         |
-| rationale    | string | Agent-generated plain-language rationale       |
-| status       | string | `proposed`, `approved`, `rejected`, `executed` |
-| created_at   | string | ISO 8601 datetime                              |
+## 3 Investing Trade Ticket (draft)
+Fields:
+- ticket_id (uuid)
+- created_at
+- symbol
+- side (buy|sell)
+- order_type (market|limit|stop|stop_limit)
+- qty / notional
+- entry_rule_reference
+- exit_rule_reference
+- stop_loss (optional)
+- take_profit (optional)
+- time_in_force
+- risk_notes
+- sizing_rationale
+- strategy_version
+- status (draft|approved|placed|canceled)  # placed not used in v1

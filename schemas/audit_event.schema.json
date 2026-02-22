@@ -1,55 +1,18 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://jx-42/schemas/audit_event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AuditEvent",
-  "description": "A single recorded action or decision by a jx-42 agent.",
   "type": "object",
-  "required": ["event_id", "timestamp", "agent", "action", "status"],
-  "additionalProperties": false,
+  "required": ["event_id", "timestamp", "correlation_id", "component", "action_type", "risk_level", "policy_decision"],
   "properties": {
-    "event_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "UUID v4 identifier for the event."
-    },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 datetime when the event was recorded."
-    },
-    "agent": {
-      "type": "string",
-      "enum": ["kernel", "finance_program", "investing_program", "policy_guardian", "k2so"],
-      "description": "Name of the agent that produced the event."
-    },
-    "action": {
-      "type": "string",
-      "description": "Short action identifier (e.g., 'trade.propose', 'budget.analyse')."
-    },
-    "status": {
-      "type": "string",
-      "enum": ["success", "failure", "vetoed", "pending"],
-      "description": "Outcome status of the action."
-    },
-    "payload": {
-      "type": "object",
-      "description": "Action-specific data. Schema varies by action type."
-    },
-    "policy_flags": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "List of policy IDs evaluated during this event (e.g., ['P-01', 'P-03'])."
-    },
-    "user_ref": {
-      "type": "string",
-      "description": "Opaque reference to the user who triggered the event. Must not contain PII."
-    },
-    "session_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "UUID v4 session identifier grouping related events."
-    }
+    "event_id": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "correlation_id": { "type": "string" },
+    "component": { "type": "string" },
+    "action_type": { "type": "string" },
+    "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+    "inputs_summary": { "type": "string" },
+    "outputs_summary": { "type": "string" },
+    "policy_decision": { "type": "string", "enum": ["allow", "deny", "confirm_required"] },
+    "rationale": { "type": "string" }
   }
 }
