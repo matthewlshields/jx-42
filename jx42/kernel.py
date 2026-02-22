@@ -49,6 +49,9 @@ class DefaultKernel(Kernel):
         self._time_provider = time_provider or utc_now_iso
 
     def handle_request(self, request: UserRequest) -> KernelResponse:
+        # Validate that the incoming request has a non-empty text payload
+        if request is None or request.text is None or not str(request.text).strip():
+            raise ValueError("UserRequest.text must be a non-empty string.")
         correlation_id = self._id_generator.new_uuid()
         context_items = self._memory.retrieve(query=request.text, limit=3)
         plan = self._plan_request(request, context_items)
