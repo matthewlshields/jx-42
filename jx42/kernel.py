@@ -169,6 +169,8 @@ class DefaultKernel(Kernel):
         return "Request received. Draft response stub."
 
     def _apply_persona(self, text: str) -> str:
+        if self._config.persona.lower() in ("jx-42", "jx42"):
+            return f"[{self._config.persona}] {text}"
         return text
 
     def _emit_event(
