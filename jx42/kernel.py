@@ -23,7 +23,7 @@ from .policy import PolicyDecision, PolicyGuardian
 @dataclass(frozen=True)
 class KernelConfig:
     determinism_seed: Optional[int] = None
-    persona: str = "k2so"
+    persona: str = "JX-42"
 
 
 class Kernel:
