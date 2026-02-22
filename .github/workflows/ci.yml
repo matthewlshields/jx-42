@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # TODO: Pin to full SHA after resolving offline (security hardening)
+      - uses: actions/checkout@v4
+
+      # TODO: Pin to full SHA after resolving offline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Run CLI golden tests
+        run: python -m unittest tests.test_cli_golden
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      # TODO: Pin to full SHA after resolving offline
+      - uses: actions/checkout@v4
+
+      # TODO: Pin to full SHA after resolving offline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+
+      - name: Lint with ruff
+        run: ruff check jx42/ tests/
+
+      - name: Type check with mypy
+        run: mypy jx42/ --ignore-missing-imports

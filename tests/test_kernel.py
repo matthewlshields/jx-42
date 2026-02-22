@@ -1,0 +1,64 @@
+import unittest
+
+from jx42.audit import InMemoryAuditLog
+from jx42.kernel import DefaultKernel, KernelConfig
+from jx42.memory import InMemoryMemoryLibrarian
+from jx42.models import UserRequest
+from jx42.policy import DefaultPolicyGuardian
+
+
+class TestKernel(unittest.TestCase):
+    def setUp(self) -> None:
+        self.guardian = DefaultPolicyGuardian()
+        self.librarian = InMemoryMemoryLibrarian()
+        self.audit = InMemoryAuditLog()
+
+    def test_handle_request_plan_created(self) -> None:
+        kernel = DefaultKernel(
+            policy_guardian=self.guardian,
+            memory_librarian=self.librarian,
+            audit_log=self.audit,
+        )
+        request = UserRequest(text="Hey Jax, summarize my finances")
+        response = kernel.handle_request(request)
+        self.assertIsNotNone(response.correlation_id)
+        self.assertEqual(3, len(response.audit_event_ids))
+        events = self.audit.list_events(correlation_id=response.correlation_id)
+        self.assertEqual(3, len(events))
+        self.assertEqual("plan_created", events[0].action_type)
+        self.assertEqual("policy_decision", events[1].action_type)
+        self.assertEqual("response_generated", events[2].action_type)
+
+    def test_money_move_denied(self) -> None:
+        kernel = DefaultKernel(
+            policy_guardian=self.guardian,
+            memory_librarian=self.librarian,
+            audit_log=self.audit,
+        )
+        request = UserRequest(text="Hey Jax, move $500 to savings")
+        response = kernel.handle_request(request)
+        self.assertIn("blocked", response.response_text.lower())
+
+    def test_determinism(self) -> None:
+        kernel1 = DefaultKernel(
+            policy_guardian=self.guardian,
+            memory_librarian=self.librarian,
+            audit_log=InMemoryAuditLog(),
+            config=KernelConfig(determinism_seed=42),
+            time_provider=lambda: "2026-01-01T00:00:00+00:00",
+        )
+        kernel2 = DefaultKernel(
+            policy_guardian=self.guardian,
+            memory_librarian=self.librarian,
+            audit_log=InMemoryAuditLog(),
+            config=KernelConfig(determinism_seed=42),
+            time_provider=lambda: "2026-01-01T00:00:00+00:00",
+        )
+        request = UserRequest(text="test")
+        response1 = kernel1.handle_request(request)
+        response2 = kernel2.handle_request(request)
+        self.assertEqual(response1.correlation_id, response2.correlation_id)
+
+
+if __name__ == "__main__":
+    unittest.main()
