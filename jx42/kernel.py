@@ -64,8 +64,40 @@ class DefaultKernel(Kernel):
             rationale="Plan created.",
         )
 
+        # Gate all tool calls through Policy Guardian
         for tool_call in plan.tool_calls:
-            _ = self._policy.evaluate(plan.intent, tool_call=tool_call)
+            tool_decision = self._policy.evaluate(plan.intent, tool_call=tool_call)
+            if tool_decision.decision == PolicyDecisionType.DENY:
+                # If any tool call is denied, deny the entire request
+                decision = tool_decision
+                policy_event = self._emit_event(
+                    correlation_id=correlation_id,
+                    component="policy",
+                    action_type="policy_decision",
+                    risk_level=decision.risk_level,
+                    inputs_summary=f"tool_call:{tool_call.name}",
+                    outputs_summary=decision.decision.value,
+                    policy_decision=decision.decision,
+                    rationale=decision.rationale,
+                )
+                response_text = self._build_response(plan, decision)
+                response_text = self._apply_persona(response_text)
+                response_event = self._emit_event(
+                    correlation_id=correlation_id,
+                    component="kernel",
+                    action_type="response_generated",
+                    risk_level=decision.risk_level,
+                    inputs_summary=plan.plan_summary,
+                    outputs_summary=response_text,
+                    policy_decision=decision.decision,
+                    rationale="Response generated.",
+                )
+                audit_ids = [plan_event, policy_event, response_event]
+                return KernelResponse(
+                    correlation_id=correlation_id,
+                    response_text=response_text,
+                    audit_event_ids=audit_ids,
+                )
 
         decision = self._policy.evaluate(plan.intent, tool_call=None)
 
