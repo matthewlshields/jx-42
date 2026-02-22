@@ -29,6 +29,16 @@ def validate_required_fields(payload: Dict[str, Any], schema: Dict[str, Any]) ->
             errors.append(f"Field {field} expected {expected_type}")
         if "enum" in rules and value not in rules["enum"]:
             errors.append(f"Field {field} must be one of {rules['enum']}")
+
+        # Enforce basic numeric constraints if defined in the schema.
+        # This aligns with JSON Schema's "minimum" and "maximum" keywords.
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            minimum = rules.get("minimum")
+            maximum = rules.get("maximum")
+            if minimum is not None and value < minimum:
+                errors.append(f"Field {field} must be >= {minimum}")
+            if maximum is not None and value > maximum:
+                errors.append(f"Field {field} must be <= {maximum}")
     return errors
 
 
