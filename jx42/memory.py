@@ -26,7 +26,7 @@ class InMemoryMemoryLibrarian(MemoryLibrarian):
 
     def retrieve(self, query: Optional[str] = None, limit: int = 5) -> List[MemoryItem]:
         items = sorted(self._items, key=lambda item: (item.timestamp, item.item_id))
-        if query:
+        if query is not None:
             lowered = query.lower()
             items = [item for item in items if lowered in item.content.lower()]
         return items[:limit]
