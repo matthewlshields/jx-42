@@ -14,9 +14,13 @@ Tier 2: Email/Calendar/Tasks later
 - JX-42 voice is presentation-only (planner remains clinical)
 
 ## Quick Start (planning)
-1) Read: SPEC.md, POLICIES.md
-2) Implement in milestones order: MILESTONES.md
-3) Keep contracts stable: DATA_MODEL.md + /schemas
+
+**For Coding Agents**: Start here → **read `system_index.yaml`** first. It has the complete architecture map.
+
+1) Read: `system_index.yaml` (machine-readable blueprint)
+2) Read: SPEC.md, POLICIES.md
+3) Implement in milestones order: MILESTONES.md
+4) Keep contracts stable: DATA_MODEL.md + /schemas
 
 ## Installation & Usage
 

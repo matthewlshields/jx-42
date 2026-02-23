@@ -1,0 +1,278 @@
+# JX-42 System Index — Machine-Readable Architecture Map
+# Generated: 2026-02-22
+# Purpose: Enable agents to understand system structure without reverse-engineering
+
+system:
+  name: "JX-42 (Jax)"
+  description: "Personal assistant kernel with safe-by-default orchestration"
+  version: "0.1.0"
+  language: python
+  python_version: ">=3.12"
+  architecture_pattern: "modular_monolith"
+  package_manager: "uv"
+
+entrypoints:
+  cli:
+    module: "jx42.cli"
+    function: "main"
+    command: "jx-42"
+    usage: "uv run jx-42 run 'your request'"
+  main_script:
+    path: "main.py"
+    function: "main"
+    description: "Direct Python entry point"
+
+core_modules:
+  tier_0_foundation:
+    description: "Foundation layer — must be stable"
+    components:
+      - kernel:
+          module: "jx42.kernel"
+          responsibility: "Orchestrator — interprets requests, routes to programs, enforces policy"
+          key_functions:
+            - "create_plan"
+            - "route_to_program"
+            - "emit_audit_event"
+          hard_rules:
+            - "Must call Policy Guardian before any tool/action"
+            - "Must produce audit event IDs in responses"
+      
+      - policy:
+          module: "jx42.policy"
+          responsibility: "Policy Guardian — gates all actions, enforces permissions"
+          key_functions:
+            - "evaluate_action"
+            - "check_permissions"
+            - "require_confirmation"
+          inputs: ["proposed_action", "risk_metadata", "policy_state"]
+          outputs: ["allow|deny", "confirmation_requirements"]
+      
+      - memory:
+          module: "jx42.memory"
+          responsibility: "Memory Librarian — stores/retrieves context with provenance"
+          key_functions:
+            - "store_item"
+            - "retrieve_context"
+            - "get_provenance"
+          storage_items:
+            - "user_preferences"
+            - "financial_assumptions"
+            - "investing_strategy_definitions"
+            - "risk_limits"
+
+  tier_1_programs:
+    description: "Specialist agent programs — draft-only outputs (v1)"
+    components:
+      - finance:
+          module: "jx42.finance"
+          responsibility: "Finance program — cashflow analysis, debt payoff, runway estimates"
+          key_classes:
+            - "FinanceProgram"
+          key_functions:
+            - "import_csv"
+            - "reconcile"
+            - "monthly_report"
+            - "weekly_report"
+            - "estimate_runway"
+            - "build_debt_scenarios"
+            - "detect_anomalies"
+          inputs:
+            - "CSV exports (banks/cards)"
+            - "Manual entries"
+            - "Current balance"
+          outputs:
+            - "FinanceReport (monthly/weekly)"
+            - "RunwayEstimate"
+            - "DebtPayoffScenario[]"
+            - "AnomalyAlert[]"
+          constraints:
+            - "Draft-only — no account changes in v1"
+          category_rules: "See _CATEGORY_RULES in module"
+      
+      - investing:
+          module: "jx42.investing"
+          responsibility: "Investing program — rules-based signals, backtests, trade drafts"
+          key_classes:
+            - "InvestingProgram"
+          key_functions:
+            - "backtest_strategy"
+            - "generate_watchlist"
+            - "create_trade_tickets"
+            - "validate_risk_limits"
+          inputs:
+            - "Market data"
+            - "Strategy definition (rules)"
+            - "Portfolio snapshot"
+            - "Risk settings"
+          outputs:
+            - "Watchlist (scored)"
+            - "BacktestReport"
+            - "TradeTicket[] (draft)"
+          constraints:
+            - "Draft-only — paper trading recommended"
+            - "No look-ahead bias in backtest"
+
+  tier_2_future:
+    description: "Future domain programs (not implemented)"
+    planned:
+      - "Email Program"
+      - "Calendar Program"
+      - "Tasks Program"
+
+supporting_modules:
+  - models:
+      module: "jx42.models"
+      description: "Data classes — AuditEvent, FinanceLedgerEntry, TradeTicket, etc."
+      key_classes:
+        - "AuditEvent"
+        - "FinanceLedgerEntry"
+        - "FinanceReport"
+        - "DebtPayoffScenario"
+        - "RunwayEstimate"
+        - "AnomalyAlert"
+        - "TradeTicket"
+  
+  - audit:
+      module: "jx42.audit"
+      description: "Audit logging — append-only event stream"
+      key_functions:
+        - "emit_event"
+        - "correlate_events"
+  
+  - storage:
+      module: "jx42.storage"
+      description: "Data persistence abstraction"
+      key_functions:
+        - "load_ledger"
+        - "save_ledger"
+        - "persist_strategy"
+  
+  - validation:
+      module: "jx42.validation"
+      description: "Input validation and schema enforcement"
+      key_functions:
+        - "validate_ledger_entry"
+        - "validate_trade_ticket"
+
+data_model:
+  audit_event:
+    schema: "schemas/audit_event.schema.json"
+    append_only: true
+    fields: ["event_id", "timestamp", "correlation_id", "component", "action_type", "risk_level", 
+             "inputs_summary", "outputs_summary", "policy_decision", "rationale"]
+  
+  finance_ledger:
+    schema: "schemas/finance_ledger.schema.json"
+    fields: ["entry_id", "date", "amount", "currency", "account_id", "merchant", "category", 
+             "category_confidence", "memo", "source", "import_batch_id"]
+  
+  trade_ticket:
+    schema: "schemas/investing_trade_ticket.schema.json"
+    fields: ["ticket_id", "created_at", "symbol", "side", "order_type", "qty", "entry_rule_reference",
+             "exit_rule_reference", "stop_loss", "take_profit", "status"]
+
+security_model:
+  auth: "policy_gating"
+  policy_enforcer: "Policy Guardian (jx42.policy)"
+  confirmation_required_for:
+    - "external_data_access"
+    - "draft_trading_operations"
+    - "account_modifications"
+  secret_source: "environment"
+  audit_trail: "append_only"
+  hard_constraints:
+    - "No external action without Policy Guardian approval"
+    - "Money moves are draft-only by default"
+    - "Every plan/tool_call produces audit event"
+
+data_store:
+  primary: "in_memory"
+  persistence: "file_based (future: database)"
+  schemas_dir: "schemas/"
+  ledger_storage: "Storage abstraction in jx42.storage"
+  strategy_storage: "Storage abstraction in jx42.storage"
+
+external_integrations:
+  finance:
+    - "CSV bank exports (via import_csv)"
+    - "Manual transaction entry"
+  investing:
+    - "Market data feeds (TBD)"
+    - "Strategy rule engine"
+  future:
+    - "Email provider integration"
+    - "Calendar provider integration"
+    - "OAuth2 for external auth"
+
+prompts_and_system_messages:
+  kernel: "prompts/kernel.system.md"
+  policy_guardian: "prompts/policy_guardian.system.md"
+  finance_program: "prompts/finance_program.system.md"
+  investing_program: "prompts/investing_program.system.md"
+  style_guide: "prompts/jx42.style.md"
+
+testing:
+  framework: pytest
+  test_directory: tests/
+  key_test_modules:
+    - "test_kernel.py"
+    - "test_policy.py"
+    - "test_memory.py"
+    - "test_finance.py"
+    - "test_investing.py"
+    - "test_audit.py"
+    - "test_storage.py"
+    - "test_validation.py"
+    - "test_cli_golden.py"
+  run_command: "uv run pytest -v"
+
+configuration:
+  tool_ruff:
+    line_length: 120
+    target_version: "py312"
+    linters: ["E", "F", "I"]
+  tool_mypy:
+    python_version: "3.12"
+    enforce_return_types: true
+    enforce_config: true
+
+documentation:
+  root_docs:
+    - "README.md"
+    - "SPEC.md"
+    - "ARCHITECTURE.md"
+    - "DATA_MODEL.md"
+    - "POLICIES.md"
+    - "MILESTONES.md"
+  diagrams: "docs/diagrams.md"
+  examples: "examples/"
+  decision_log: "docs/decision-log.md"
+
+dependencies:
+  runtime:
+    description: "Core JX-42 has zero runtime dependencies"
+    list: []
+  
+  dev:
+    - "ruff>=0.1.0 (linting)"
+    - "mypy>=1.7.0 (type checking)"
+    - "pytest>=7.4.0 (testing)"
+
+constraints_and_priorities:
+  hard_constraints:
+    - "No external tool/action without Policy Guardian approval"
+    - "Money moves are always draft-only (v1)"
+    - "Every component action creates an audit event"
+    - "JX-42 voice is presentation-only (planning remains clinical)"
+  
+  non_goals_v1:
+    - "Autonomous financial execution"
+    - "Unbounded agent swarm behavior"
+    - "Hidden actions without explicit visibility"
+  
+  implementation_order: "See MILESTONES.md"
+
+decision_framework:
+  all_decisions_logged: "docs/decision-log.md"
+  ai_design_review: "docs/2026-02-21-ai-design-review.md"
+  threat_model: "docs/threat-model-lite.md"

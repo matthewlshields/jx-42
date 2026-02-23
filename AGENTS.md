@@ -1,5 +1,24 @@
 # JX-42 Agents (Programs) — Contracts & Evals
 
+## Agent Onboarding (READ FIRST)
+**For coding agents and automated systems:** 
+1. **Always read `system_index.yaml`** before making any changes. It is the canonical, machine-readable source-of-truth for:
+   - Module responsibilities and entry points
+   - Data model schemas and field references
+   - Hard constraints and non-negotiables
+   - Security model and policy enforcement points
+   - Testing requirements
+   - External integration points
+
+2. After understanding the system map, refer to this document for:
+   - Agent contract specifications (purpose, inputs, outputs, permissions)
+   - Hard eval requirements for each tier
+   - Permission tiers and confirmation gates
+
+Architecture changes? Update `system_index.yaml` first, then update this file and README.md.
+
+---
+
 ## Agent Contract Template
 - Purpose
 - Inputs (schema)
