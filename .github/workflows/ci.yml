@@ -14,20 +14,17 @@ jobs:
       - uses: actions/checkout@v4
 
       # TODO: Pin to full SHA after resolving offline
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
+        run: uv sync --extra dev
 
       - name: Run unit tests
-        run: python -m unittest discover -s tests -p 'test_*.py'
+        run: uv run python -m unittest discover -s tests -p 'test_*.py'
 
       - name: Run CLI golden tests
-        run: python -m unittest tests.test_cli_golden
+        run: uv run python -m unittest tests.test_cli_golden
 
   lint:
     runs-on: ubuntu-latest
@@ -36,17 +33,14 @@ jobs:
       - uses: actions/checkout@v4
 
       # TODO: Pin to full SHA after resolving offline
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Install linters
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff mypy
+        run: uv sync --extra dev
 
       - name: Lint with ruff
-        run: ruff check jx42/ tests/
+        run: uv run ruff check jx42/ tests/
 
       - name: Type check with mypy
-        run: mypy jx42/ --ignore-missing-imports
+        run: uv run mypy jx42/ --ignore-missing-imports

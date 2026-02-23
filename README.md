@@ -20,31 +20,36 @@ Tier 2: Email/Calendar/Tasks later
 
 ## Installation & Usage
 
-Install in development mode:
+Install dependencies (this project uses `uv`):
 ```bash
-pip install -e .
+uv sync --extra dev
 ```
 
 Run a request:
 ```bash
-jx-42 run "Hey Jax, summarize my finances"
+uv run jx-42 run "Hey Jax, summarize my finances"
 ```
 
 Run with deterministic seed:
 ```bash
-jx-42 run "Hey Jax, summarize my finances" --seed 42
+uv run jx-42 run "Hey Jax, summarize my finances" --seed 42
 ```
 
 ## Testing
 
 Run all tests:
 ```bash
-python -m unittest discover -s tests -p 'test_*.py'
+uv run pytest -v
+```
+
+Or using unittest:
+```bash
+uv run python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Run specific test module:
 ```bash
-python -m unittest tests.test_kernel
+uv run python -m unittest tests.test_kernel
 ```
 
 ## Glossary
