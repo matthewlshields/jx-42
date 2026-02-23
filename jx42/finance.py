@@ -376,11 +376,8 @@ def generate_monthly_report(entries: Sequence[FinanceLedgerEntry], month: str) -
     for e in period_entries:
         if e.amount < 0:
             by_cat[e.category] += abs(e.amount)
-    top_cats = sorted(
-        [{"category": k, "total": round(v, 2)} for k, v in by_cat.items()],
-        key=lambda x: x["total"],
-        reverse=True,
-    )[:5]
+    _sorted_cats = sorted(by_cat.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    top_cats: List[Dict[str, Any]] = [{"category": k, "total": round(v, 2)} for k, v in _sorted_cats]
 
     anomalies = detect_anomalies(period_entries)
 
@@ -426,11 +423,8 @@ def generate_weekly_report(entries: Sequence[FinanceLedgerEntry], year_week: str
     for e in period_entries:
         if e.amount < 0:
             by_cat[e.category] += abs(e.amount)
-    top_cats = sorted(
-        [{"category": k, "total": round(v, 2)} for k, v in by_cat.items()],
-        key=lambda x: x["total"],
-        reverse=True,
-    )[:5]
+    _sorted_cats = sorted(by_cat.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    top_cats: List[Dict[str, Any]] = [{"category": k, "total": round(v, 2)} for k, v in _sorted_cats]
 
     summary = f"Weekly delta {year_week}: income={income:.2f}, expenses={expenses:.2f}, net={net:.2f}."
 
